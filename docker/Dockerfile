@@ -14,7 +14,7 @@ COPY src/OrderManager.Api/OrderManager.Api.csproj src/OrderManager.Api/
 COPY tests/OrderManager.Api.Tests/OrderManager.Api.Tests.csproj tests/OrderManager.Api.Tests/
 RUN dotnet restore
 COPY . .
-COPY --from=client-build /app/client/dist/client-app/browser src/OrderManager.Api/wwwroot/
+COPY --from=client-build /app/src/OrderManager.Api/wwwroot/browser src/OrderManager.Api/wwwroot/
 RUN dotnet publish src/OrderManager.Api/OrderManager.Api.csproj -c Release -o /app/publish
 
 # Stage 3: Runtime
