@@ -35,11 +35,65 @@ autoscaling:
   maxReplicas: 3
   targetCPUUtilizationPercentage: 80
 
-env:
-  - name: ASPNETCORE_ENVIRONMENT
-    value: Production
-  - name: ConnectionStrings__DefaultConnection
-    value: "Data Source=/data/ordermanager.db"
+# Rendered into the ConfigMap (sync wave 1) and loaded with envFrom.
+config:
+  ASPNETCORE_ENVIRONMENT: Production
+  ConnectionStrings__DefaultConnection: "Data Source=/data/ordermanager.db"
+
+# Extra container env entries (e.g. secretKeyRef); takes precedence over config.
+env: []
+
+# Render the release Namespace as sync wave 0. Enabled by the Argo CD
+# Applications; leave off for `helm install --create-namespace`.
+namespace:
+  create: false
+  labels: {}
+
+deployment:
+  # Argo CD marks the Deployment Degraded once a rollout exceeds this.
+  progressDeadlineSeconds: 300
+  revisionHistoryLimit: 5
+
+# Readiness gates the Deployment's Argo CD health; /api/products reads the
+# database, /health only proves Kestrel is serving (SPA fallback).
+probes:
+  startup:
+    httpGet:
+      path: /health
+      port: http
+    periodSeconds: 5
+    failureThreshold: 30
+  liveness:
+    httpGet:
+      path: /health
+      port: http
+    periodSeconds: 20
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readiness:
+    httpGet:
+      path: /api/products
+      port: http
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+# PostSync hook: curls the Service after every sync; a failure fails the sync.
+smokeTest:
+  enabled: true
+  image: curlimages/curl:8.10.1
+  paths:
+    - /health
+    - /api/products
+  backoffLimit: 2
+  activeDeadlineSeconds: 180
+  resources:
+    requests:
+      cpu: 10m
+      memory: 16Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
 
 persistence:
   enabled: true

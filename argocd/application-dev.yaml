@@ -3,16 +3,27 @@ kind: Application
 metadata:
   name: ordermanager-dev
   namespace: argocd
+  labels:
+    app.kubernetes.io/name: ordermanager
+    app.kubernetes.io/part-of: ordermanager
+    environment: dev
+  finalizers:
+    # Deleting the Application deletes its resources (Namespace is kept).
+    - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
   source:
-    repoURL: https://github.com/Cognition-Partner-Workshops/app_dotnet-angular-monolith-iac.git
+    repoURL: https://github.com/codev-workshops/ordermanager-iac.git
     targetRevision: main
     path: helm/ordermanager
     helm:
+      releaseName: ordermanager-dev
       valueFiles:
         - values.yaml
         - values-dev.yaml
+      valuesObject:
+        namespace:
+          create: true
   destination:
     server: https://kubernetes.default.svc
     namespace: decomposition-dev
@@ -20,5 +31,15 @@ spec:
     automated:
       prune: true
       selfHeal: true
+      allowEmpty: false
     syncOptions:
       - CreateNamespace=true
+      - PruneLast=true
+      - PrunePropagationPolicy=foreground
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m
+  revisionHistoryLimit: 10

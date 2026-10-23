@@ -1,0 +1,78 @@
+{{- if .Values.smokeTest.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "ordermanager.fullname" . }}-smoke-test
+  labels:
+    {{- include "ordermanager.labels" . | nindent 4 }}
+    app.kubernetes.io/component: smoke-test
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: {{ .Values.smokeTest.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.smokeTest.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        {{- include "ordermanager.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: smoke-test
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 100
+      containers:
+        - name: smoke-test
+          image: {{ .Values.smokeTest.image | quote }}
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              for path in {{ join " " .Values.smokeTest.paths }}; do
+                echo "GET {{ include "ordermanager.fullname" . }}:{{ .Values.service.port }}${path}"
+                curl -fsS -o /dev/null --retry 5 --retry-all-errors --retry-delay 5 --max-time 10 \
+                  "http://{{ include "ordermanager.fullname" . }}:{{ .Values.service.port }}${path}"
+              done
+              echo "smoke test passed"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            {{- toYaml .Values.smokeTest.resources | nindent 12 }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "ordermanager.fullname" . }}-smoke-test
+  labels:
+    {{- include "ordermanager.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "ordermanager.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: smoke-test
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "ordermanager.selectorLabels" . | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.service.targetPort }}
+    - to: []
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+{{- end }}
