@@ -1,0 +1,56 @@
+# Production overlay: helm ... -f values.yaml -f values-production.yaml
+
+image:
+  # Pin an immutable tag (e.g. the git SHA pushed by CI) instead of a moving tag.
+  tag: "1.0.0"
+
+serviceAccount:
+  irsaRoleArn: arn:aws:iam::599083837640:role/workshop-prod-product-service
+
+config:
+  ASPNETCORE_ENVIRONMENT: Production
+  Logging__LogLevel__Default: Warning
+
+# Database connection string (ConnectionStrings__DefaultConnection) lives in this Secret.
+envFromSecrets:
+  - product-service-db
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 256Mi
+  limits:
+    cpu: "1"
+    memory: 512Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+terminationGracePeriodSeconds: 45
+preStopSleepSeconds: 10
+
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: DoNotSchedule
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway
+
+networkPolicy:
+  egress:
+    extraRules:
+      # PostgreSQL (RDS) inside the production VPC.
+      - to:
+          - ipBlock:
+              cidr: 10.0.0.0/16
+        ports:
+          - protocol: TCP
+            port: 5432

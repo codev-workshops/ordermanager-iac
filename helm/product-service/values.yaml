@@ -1,0 +1,175 @@
+# Default values for product-service.
+# Environment overlays (e.g. values-production.yaml) are layered on top of this file.
+
+nameOverride: ""
+fullnameOverride: ""
+
+# Ignored while autoscaling.enabled is true (the HPA owns the replica count).
+replicaCount: 2
+
+image:
+  repository: 599083837640.dkr.ecr.us-east-1.amazonaws.com/workshop/product-service
+  # Defaults to .Chart.AppVersion when empty.
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+serviceAccount:
+  create: true
+  # Defaults to the release fullname when empty.
+  name: ""
+  # IAM role assumed by the pod via IRSA (eks.amazonaws.com/role-arn).
+  irsaRoleArn: arn:aws:iam::599083837640:role/workshop-dev-product-service
+  annotations: {}
+  # The EKS pod identity webhook injects its own projected token for IRSA,
+  # so the Kubernetes API token is not mounted.
+  automountServiceAccountToken: false
+
+# Non-secret environment variables, rendered into a ConfigMap and loaded with envFrom.
+# Changing any value rolls the Deployment (checksum/config annotation).
+config:
+  ASPNETCORE_ENVIRONMENT: Production
+  Logging__LogLevel__Default: Information
+
+# Existing Secrets loaded with envFrom (e.g. database connection strings).
+envFromSecrets: []
+
+# Extra env entries (supports valueFrom).
+extraEnv: []
+
+service:
+  port: 80
+  targetPort: 8080
+  annotations: {}
+
+ingress:
+  # Product Service is reached through the api-gateway by default.
+  enabled: false
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-staging
+  hosts:
+    - host: product-service.workshop.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+probes:
+  path: /health
+  startup:
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 24
+  liveness:
+    periodSeconds: 20
+    timeoutSeconds: 3
+    failureThreshold: 3
+  readiness:
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+rollingUpdate:
+  maxSurge: 25%
+  maxUnavailable: 0
+
+revisionHistoryLimit: 5
+minReadySeconds: 5
+terminationGracePeriodSeconds: 30
+# Lets ingress/endpoints drop the pod before the process receives SIGTERM.
+preStopSleepSeconds: 5
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: null
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 30
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 50
+          periodSeconds: 60
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# Matches the non-root "app" user (UID 1654) shipped in the .NET 8 base images.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1654
+  runAsGroup: 1654
+  fsGroup: 1654
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+tmpVolumeSizeLimit: 128Mi
+
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: ScheduleAnyway
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway
+
+priorityClassName: ""
+podAnnotations: {}
+podLabels: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+monitoring:
+  enabled: true
+  path: /metrics
+  interval: 30s
+
+networkPolicy:
+  enabled: true
+  ingress:
+    # Allow the shared ingress-nginx controller (only needed when ingress.enabled).
+    allowIngressController: false
+    ingressControllerNamespace: ingress-nginx
+    # Prometheus scraping is allowed from this namespace when monitoring.enabled.
+    monitoringNamespace: monitoring
+    # Same-namespace callers allowed to reach the service port, by pod labels.
+    allowedClients:
+      - app.kubernetes.io/name: api-gateway
+      - app.kubernetes.io/name: order-service
+      - app.kubernetes.io/name: inventory-service
+    # Raw NetworkPolicyIngressRule entries appended as-is.
+    extraRules: []
+  egress:
+    enabled: true
+    # HTTPS to AWS APIs (STS for IRSA, etc.).
+    allowHttps: true
+    # Raw NetworkPolicyEgressRule entries appended as-is (e.g. the service database).
+    extraRules: []
