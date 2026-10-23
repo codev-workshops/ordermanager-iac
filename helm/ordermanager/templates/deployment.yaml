@@ -22,6 +22,13 @@ spec:
       labels:
         {{- include "ordermanager.selectorLabels" . | nindent 8 }}
     spec:
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- range . }}
+        {{- $defaults := dict "labelSelector" (dict "matchLabels" (include "ordermanager.selectorLabels" $ | fromYaml)) "matchLabelKeys" (list "pod-template-hash") }}
+        {{- toYaml (list (merge (dict) . $defaults)) | nindent 8 }}
+        {{- end }}
+      {{- end }}
       containers:
         - name: {{ .Chart.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"

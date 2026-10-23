@@ -43,6 +43,19 @@ podDisruptionBudget:
   minAvailable: 1
   unhealthyPodEvictionPolicy: AlwaysAllow
 
+# Spread replicas across nodes (hard) and zones (soft). The chart adds the
+# selector labels as labelSelector plus matchLabelKeys: [pod-template-hash],
+# so only pods of the same rollout are counted and rolling updates aren't
+# blocked. nodeTaintsPolicy: Honor skips nodes the pod can't tolerate.
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: DoNotSchedule
+    nodeTaintsPolicy: Honor
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: ScheduleAnyway
+
 # Rendered into the ConfigMap (sync wave 1) and loaded with envFrom.
 config:
   ASPNETCORE_ENVIRONMENT: Production
