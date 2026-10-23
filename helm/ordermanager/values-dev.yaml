@@ -18,11 +18,9 @@ resources:
     cpu: 250m
     memory: 256Mi
 
-env:
-  - name: ASPNETCORE_ENVIRONMENT
-    value: Development
-  - name: ConnectionStrings__DefaultConnection
-    value: "Data Source=ordermanager.db"
+config:
+  ASPNETCORE_ENVIRONMENT: Development
+  ConnectionStrings__DefaultConnection: "Data Source=ordermanager.db"
 
 persistence:
   enabled: false

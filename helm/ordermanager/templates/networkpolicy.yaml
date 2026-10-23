@@ -4,6 +4,8 @@ metadata:
   name: {{ include "ordermanager.fullname" . }}
   labels:
     {{- include "ordermanager.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
 spec:
   podSelector:
     matchLabels:
@@ -19,6 +21,16 @@ spec:
       ports:
         - protocol: TCP
           port: {{ .Values.service.targetPort }}
+    {{- if .Values.smokeTest.enabled }}
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "ordermanager.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: smoke-test
+      ports:
+        - protocol: TCP
+          port: {{ .Values.service.targetPort }}
+    {{- end }}
     {{- if .Values.monitoring.enabled }}
     - from:
         - namespaceSelector:
