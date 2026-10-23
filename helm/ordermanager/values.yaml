@@ -35,6 +35,14 @@ autoscaling:
   maxReplicas: 3
   targetCPUUtilizationPercentage: 80
 
+# Keeps at least minAvailable pods up during voluntary disruptions (node drains,
+# cluster upgrades). AlwaysAllow lets pods that aren't Ready be evicted anyway,
+# so a crash-looping pod can't block a drain.
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+  unhealthyPodEvictionPolicy: AlwaysAllow
+
 # Rendered into the ConfigMap (sync wave 1) and loaded with envFrom.
 config:
   ASPNETCORE_ENVIRONMENT: Production

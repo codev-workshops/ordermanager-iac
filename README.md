@@ -18,7 +18,7 @@ kubectl -n argocd get applications
 |------|-----------|
 | 0 | `Namespace` (`namespace.create: true`, set by the Application; never pruned or deleted, so platform quotas and policies stay) |
 | 1 | `ConfigMap` (app settings from `config:`, loaded with `envFrom`), `NetworkPolicy` |
-| 2 | `Deployment`, `HorizontalPodAutoscaler` |
+| 2 | `Deployment`, `HorizontalPodAutoscaler`, `PodDisruptionBudget` (`minAvailable: 1`) |
 | 3 | `Service`, `ServiceMonitor` |
 | 4 | `Ingress` |
 | PostSync | smoke-test `Job` |
